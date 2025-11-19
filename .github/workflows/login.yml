@@ -1,15 +1,21 @@
 name: Majsoul-Login
+
 on:
   workflow_dispatch:
-  schedule: #5:00
-   - cron: '0 21 * * *'
+  schedule: # 5:00 (UTC+8)
+    - cron: '0 21 * * *'
+
 jobs:
   login:
     name: Majsoul-Login
     runs-on: ubuntu-22.04
+
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
+        with:
+          # 确保拿到完整历史，方便 rebase
+          fetch-depth: 0
 
       - name: Install Selenium
         run: pip install selenium==4.17.2
@@ -17,24 +23,31 @@ jobs:
       - name: Majsoul login
         run: python login.py ${{ secrets.EMAIL }} ${{ secrets.PASSWD }}
 
-      - name: Check log file  
-        run: |  
-          ls  
-          if [ -f "log.txt" ]; then  
-            cat log.txt  
-          else  
-            echo "log.txt not found!"  
-          fi  
+      - name: Check log file
+        run: |
+          ls
+          if [ -f "log.txt" ]; then
+            cat log.txt
+          else
+            echo "log.txt not found!"
+          fi
 
       - name: git config
-        run: |-
-         git config --global user.name "Github Actions"
-         git config --global user.email "actions@gmail.com"
-         
-      - name: Push
-        run: |-
+        run: |
+          git config --global user.name "Github Actions"
+          git config --global user.email "actions@gmail.com"
+
+      - name: Commit and push
+        run: |
           git diff
           git status
+
           git add -A
-          git commit -m "update by github actions"
-          git push
+          # 如果没有变更，commit 会失败，这里用 || 避免整个 job 挂掉
+          git commit -m "update by github actions" || echo "No changes to commit"
+
+          # 关键：先跟远端 main 对齐（rebase，保持线性历史）
+          git pull --rebase origin main
+
+          # 再推送
+          git push origin main
